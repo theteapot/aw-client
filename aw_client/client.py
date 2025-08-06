@@ -88,7 +88,15 @@ class ActivityWatchClient:
 
         server_host = host or server_config["hostname"]
         server_port = port or server_config["port"]
-        self.server_address = f"{protocol}://{server_host}:{server_port}"
+
+        if isinstance(server_host, list):
+            self.server_addresses = [
+                f"{protocol}://{host}:{server_port}" for host in server_host
+            ]
+            self.server_address = self.server_addresses[0]
+            logger.info(f"Multiple server addresses: {self.server_addresses}")
+        else:
+            self.server_address = f"{protocol}://{server_host}:{server_port}"
 
         self.instance = SingleInstance(
             f"{self.client_name}-at-{server_host}-on-{server_port}"
@@ -105,11 +113,18 @@ class ActivityWatchClient:
     #
 
     def _url(self, endpoint: str):
-        return f"{self.server_address}/api/0/{endpoint}"
+        if hasattr(self, "server_addresses"):
+            return [f"{addr}/api/0/{endpoint}" for addr in self.server_addresses]
+        else:
+            return f"{self.server_address}/api/0/{endpoint}"
 
     @always_raise_for_request_errors
     def _get(self, endpoint: str, params: Optional[dict] = None) -> req.Response:
-        return req.get(self._url(endpoint), params=params)
+        url = self._url(endpoint)
+        if isinstance(url, list):
+            return [req.get(u) for u in url][0]  # Only return the first result
+        else:
+            return req.get(url, params=params)
 
     @always_raise_for_request_errors
     def _post(
@@ -119,19 +134,40 @@ class ActivityWatchClient:
         params: Optional[dict] = None,
     ) -> req.Response:
         headers = {"Content-type": "application/json", "charset": "utf-8"}
-        return req.post(
-            self._url(endpoint),
-            data=bytes(json.dumps(data), "utf8"),
-            headers=headers,
-            params=params,
-        )
+        url = self._url(endpoint)
+        if isinstance(url, list):
+            return [
+                req.post(
+                    u,
+                    data=bytes(json.dumps(data), "utf8"),
+                    headers=headers,
+                    params=params,
+                )
+                for u in url
+            ][0]
+        else:
+            return req.post(
+                self._url(endpoint),
+                data=bytes(json.dumps(data), "utf8"),
+                headers=headers,
+                params=params,
+            )
 
     @always_raise_for_request_errors
     def _delete(self, endpoint: str, data: Any = None) -> req.Response:
         if data is None:
             data = {}
         headers = {"Content-type": "application/json"}
-        return req.delete(self._url(endpoint), data=json.dumps(data), headers=headers)
+
+        url = self._url(endpoint)
+        if isinstance(url, list):
+            return [req.delete(u, data=json.dumps(data), headers=headers) for u in url][
+                0
+            ]
+        else:
+            return req.delete(
+                self._url(endpoint), data=json.dumps(data), headers=headers
+            )
 
     def get_info(self):
         """Returns a dict currently containing the keys 'hostname' and 'testing'."""
