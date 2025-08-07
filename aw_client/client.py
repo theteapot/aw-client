@@ -4,6 +4,7 @@ import logging
 import os
 import socket
 import threading
+import getpass
 from collections import namedtuple
 from datetime import datetime
 from time import sleep
@@ -81,6 +82,7 @@ class ActivityWatchClient:
 
         self.client_name = client_name
         self.client_hostname = socket.gethostname()
+        self.client_username = getpass.getuser()
 
         _config = load_config()
         server_config = _config["server" if not testing else "server-testing"]

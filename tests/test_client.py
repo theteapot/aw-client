@@ -8,6 +8,9 @@ import pytest
 
 from aw_core.models import Event
 from aw_client import ActivityWatchClient
+import requests
+from unittest.mock import patch
+import getpass
 
 
 def create_unique_event():
@@ -106,3 +109,16 @@ def test_full():
 
         # Delete bucket
         client.delete_bucket(bucket_name)
+
+
+def test_username():
+    now = datetime.now(timezone.utc)
+
+    client_name = "aw-test-client"
+    bucket_name = "test-bucket"
+    bucket_etype = "test"
+
+    # Test context manager
+    with ActivityWatchClient(client_name, testing=True) as client:
+        assert client.client_username == getpass.getuser()
+        print(client.client_username)
